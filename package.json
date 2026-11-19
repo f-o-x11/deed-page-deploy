@@ -1,0 +1,19 @@
+{
+  "name": "deed-page-deploy",
+  "version": "0.1.0",
+  "description": "Publish a static site build (Hugo, Docusaurus, Eleventy, Astro, VitePress, Jekyll, MkDocs, Zola, Hexo) to a permanent https://<slug>.deed.page/ URL.",
+  "keywords": ["deed.page", "deploy", "static-site", "hosting", "hugo", "docusaurus", "eleventy", "astro", "vitepress", "jekyll", "mkdocs", "zola", "hexo", "cli"],
+  "homepage": "https://github.com/f-o-x11/deed-page-deploy#readme",
+  "bugs": { "url": "https://github.com/f-o-x11/deed-page-deploy/issues", "email": "ops@avatar33.com" },
+  "repository": { "type": "git", "url": "git+https://github.com/f-o-x11/deed-page-deploy.git" },
+  "license": "MIT",
+  "author": "Avatar 8 LLC <ops@avatar33.com> (https://deed.page)",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": { ".": "./src/index.mjs", "./detect": "./src/detect.mjs", "./package.json": "./package.json" },
+  "bin": { "deed-page-deploy": "bin/deed-page-deploy.mjs" },
+  "files": ["bin/", "src/", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "publishConfig": { "access": "public" }
+}

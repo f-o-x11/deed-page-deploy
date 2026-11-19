@@ -1,0 +1,90 @@
+# Builds a real starter site with each generator, deploys it with the published
+# Action (auto-detecting the folder), checks it is live, then deletes it.
+name: e2e
+on:
+  workflow_dispatch:
+    inputs:
+      action_ref:
+        description: Action ref to test
+        default: v1
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gen: [hugo, docusaurus, eleventy, astro, vitepress, jekyll, mkdocs, zola, hexo]
+    env:
+      SLUG: dpd-ci-${{ matrix.gen }}-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tool
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build a ${{ matrix.gen }} site
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir site && cd site
+          case "${{ matrix.gen }}" in
+            hugo)
+              curl -fsSL https://github.com/gohugoio/hugo/releases/download/v0.170.1/hugo_extended_0.170.1_linux-amd64.tar.gz | tar xz -C /tmp hugo
+              /tmp/hugo new site . --force --format toml
+              mkdir -p layouts && echo '<!doctype html><title>{{ .Site.Title }}</title><h1>hugo e2e</h1>' > layouts/index.html
+              /tmp/hugo ;;
+            docusaurus)
+              npx --yes create-docusaurus@latest app classic --javascript --skip-install
+              mv app/* app/.[!.]* . 2>/dev/null || true; rmdir app
+              npm install --no-audit --no-fund && npm run build ;;
+            eleventy)
+              npm init -y && npm i -D @11ty/eleventy --no-audit --no-fund
+              echo '# eleventy e2e' > index.md && npx @11ty/eleventy ;;
+            astro)
+              npm create --yes astro@latest app -- --template minimal --yes --skip-houston --no-git --install
+              mv app/* app/.[!.]* . 2>/dev/null || true; rmdir app
+              npm run build ;;
+            vitepress)
+              npm init -y && npm i -D vitepress --no-audit --no-fund
+              mkdir -p docs/.vitepress && echo 'export default { title: "vitepress e2e" }' > docs/.vitepress/config.mjs
+              echo '# vitepress e2e' > docs/index.md && npx vitepress build docs ;;
+            jekyll)
+              sudo gem install --no-document jekyll
+              jekyll new . --blank --force && jekyll build ;;
+            mkdocs)
+              pip install --quiet mkdocs && mkdocs new . && mkdocs build ;;
+            zola)
+              curl -fsSL https://github.com/getzola/zola/releases/download/v0.23.6/zola-v0.23.6-x86_64-unknown-linux-gnu.tar.gz | tar xz -C /tmp
+              printf 'base_url = "https://example.com"\n' > config.toml
+              mkdir -p templates content && echo '<!doctype html><h1>zola e2e</h1>' > templates/index.html
+              /tmp/zola build ;;
+            hexo)
+              npx --yes hexo-cli init app
+              mv app/* app/.[!.]* . 2>/dev/null || true; rmdir app
+              npm install --no-audit --no-fund && npx hexo generate ;;
+          esac
+      - name: Show detected folder
+        run: node tool/bin/deed-page-deploy.mjs detect --cwd site
+      - id: deed
+        uses: f-o-x11/deploy-to-deed-page@v1
+        with:
+          token: ${{ secrets.DEED_PAGE_TOKEN }}
+          slug: ${{ env.SLUG }}
+          working-directory: site
+          ref: deed-ops-e2e
+      - name: Check the live site
+        run: |
+          set -eu
+          echo "url=${{ steps.deed.outputs.url }} version=${{ steps.deed.outputs.version }}"
+          code=$(curl -s -o /tmp/page -w '%{http_code}' "${{ steps.deed.outputs.url }}")
+          echo "HTTP $code"; test "$code" = 200; head -c 300 /tmp/page; echo
+      - name: Delete the test site
+        if: always()
+        env:
+          DEED_PAGE_TOKEN: ${{ secrets.DEED_PAGE_TOKEN }}
+        run: |
+          node tool/bin/deed-page-deploy.mjs delete "$SLUG" --client deed-ops-e2e || true
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://$SLUG.deed.page/"); echo "after delete: HTTP $code"
